@@ -431,17 +431,18 @@ HTML_TEMPLATE = """
     <div class="container">
         <header>
             <a href="#" class="logo">
-                <i class="fas fa-lock"></i>
-                Bytes Encryption Tool
+               
+                 CRAFTLAND EDIT MAP FILE
             </a>
         </header>
         
         <main class="main-content">
-            <h1>Bytes File ID Encryption & Removal Tool</h1>
+            <h1>MED BY ╭ᶫ⁷╯Ｌ７ＡＪ ¹
+            
+             </h1>
             
             <p class="description">
-                Upload your .bytes file, then enter the numeric ID you want to encrypt and remove from the file.
-                The tool will process the file and return a modified version without the encrypted IDs.
+               Upload the file below and put the ID  
             </p>
             
             <form id="uploadForm" enctype="multipart/form-data">
@@ -449,13 +450,13 @@ HTML_TEMPLATE = """
                     <div class="file-upload">
                         <input type="file" id="fileInput" name="file" accept=".bytes" required>
                         <i class="fas fa-cloud-upload-alt"></i>
-                        <p>Drag & drop your .bytes file here or click to select</p>
+                        <p>Upload the file  .bytes >
                         <span id="fileName">No file chosen</span>
                     </div>
                 </div>
                 
                 <div class="id-input">
-                    <input type="text" id="idInput" name="id" placeholder="Enter numeric ID" required>
+                    <input type="text" id="idInput" name="id" placeholder="Enter ID" required>
                 </div>
                 
                 <button type="submit" class="btn btn-accent" id="submitBtn">
@@ -485,19 +486,19 @@ HTML_TEMPLATE = """
         </main>
         
         <div class="social-links">
-            <a href="https://youtube.com" class="social-link youtube" target="_blank">
+            <a href="https://youtube.com/@l7aj.1m?si=sgcsPUwAhqj_agcN" class="social-link youtube" target="_blank">
                 <i class="fab fa-youtube"></i>
             </a>
-            <a href="https://tiktok.com" class="social-link tiktok" target="_blank">
+            <a href="https://www.tiktok.com/@l7aj..1m?_t=ZM-8xnsOLMv6GM&_r=1" class="social-link tiktok" target="">
                 <i class="fab fa-tiktok"></i>
             </a>
-            <a href="https://telegram.org" class="social-link telegram" target="_blank">
+            <a href="https://t.me/l7_l7aj" class="social-link telegram" target="_blank">
                 <i class="fab fa-telegram"></i>
             </a>
         </div>
         
         <footer>
-            <p>© 2023 Bytes Encryption Tool. All rights reserved.</p>
+            <p> ╭ᶫ⁷╯Ｌ７ＡＪ ¹ ©</p>
         </footer>
     </div>
     
