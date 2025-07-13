@@ -6,7 +6,6 @@ import os
 import string
 import random
 from datetime import datetime, timedelta
-import shutil
 
 app = Flask(__name__)
 executor = ThreadPoolExecutor(4)  # For handling multiple requests
@@ -21,12 +20,12 @@ def cleanup_temp_files():
     now = datetime.now()
     for filename in os.listdir(TEMP_DIR):
         file_path = os.path.join(TEMP_DIR, filename)
-        creation_time = datetime.fromtimestamp(os.path.getctime(file_path))
-        if now - creation_time > timedelta(minutes=5):  # Clean files older than 5 minutes
-            try:
+        try:
+            creation_time = datetime.fromtimestamp(os.path.getctime(file_path))
+            if now - creation_time > timedelta(minutes=5):
                 os.remove(file_path)
-            except:
-                pass
+        except:
+            pass
 
 # Generate random filename
 def generate_random_filename(original_name):
@@ -171,7 +170,7 @@ def index():
     return render_template_string(HTML_TEMPLATE)
 
 # Complete HTML template with CSS and JS
-HTML_TEMPLATE = """
+HTML_TEMPLATE = r"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
