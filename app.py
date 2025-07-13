@@ -1,10 +1,37 @@
-from flask import Flask, request, send_file, render_template_string, jsonify
+from flask import Flask, request, send_file, render_template_string, jsonify, redirect, url_for
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
 import time
+import os
+import string
+import random
+from datetime import datetime, timedelta
+import shutil
 
 app = Flask(__name__)
 executor = ThreadPoolExecutor(4)  # For handling multiple requests
+
+# Temporary storage directory
+TEMP_DIR = "temp_files"
+if not os.path.exists(TEMP_DIR):
+    os.makedirs(TEMP_DIR)
+
+# Cleanup function for temporary files
+def cleanup_temp_files():
+    now = datetime.now()
+    for filename in os.listdir(TEMP_DIR):
+        file_path = os.path.join(TEMP_DIR, filename)
+        creation_time = datetime.fromtimestamp(os.path.getctime(file_path))
+        if now - creation_time > timedelta(minutes=5):  # Clean files older than 5 minutes
+            try:
+                os.remove(file_path)
+            except:
+                pass
+
+# Generate random filename
+def generate_random_filename(original_name):
+    rand_str = ''.join(random.choices(string.ascii_letters + string.digits, k=7))
+    return f"{rand_str}_{original_name}"
 
 # Encryption function
 def encrypt_id(x):
@@ -90,18 +117,57 @@ def api_process():
         file_content = file.read()
         modified_content = process_file(file_content, encrypted_id)
         
+        # Generate random filename
+        random_filename = generate_random_filename(file.filename)
+        temp_filepath = os.path.join(TEMP_DIR, random_filename)
+        
+        # Save to temporary file
+        with open(temp_filepath, 'wb') as f:
+            f.write(modified_content)
+        
+        # Return the temporary download link
+        download_url = url_for('download_file', filename=random_filename, _external=True)
+        
+        return jsonify({
+            'success': True,
+            'download_url': download_url,
+            'filename': random_filename,
+            'expires_in': 20  # seconds
+        })
+    except Exception as e:
+        return jsonify({'error': f'File processing failed: {str(e)}'}), 500
+
+# Download endpoint for temporary files
+@app.route('/download/<filename>')
+def download_file(filename):
+    try:
+        filepath = os.path.join(TEMP_DIR, filename)
+        
+        # Check if file exists
+        if not os.path.exists(filepath):
+            return "File not found or link expired", 404
+            
+        # Check file age (should be less than 20 seconds)
+        file_age = datetime.now() - datetime.fromtimestamp(os.path.getctime(filepath))
+        if file_age.total_seconds() > 20:
+            os.remove(filepath)  # Delete expired file
+            return "Download link has expired", 410  # Gone
+        
+        # Send the file
         return send_file(
-            BytesIO(modified_content),
+            filepath,
             as_attachment=True,
-            download_name=f"modified_{file.filename}",
+            download_name=filename,
             mimetype='application/octet-stream'
         )
     except Exception as e:
-        return jsonify({'error': f'File processing failed: {str(e)}'}), 500
+        return f"Error: {str(e)}", 500
 
 # Website interface
 @app.route('/', methods=['GET'])
 def index():
+    # Clean up old files on each visit
+    cleanup_temp_files()
     return render_template_string(HTML_TEMPLATE)
 
 # Complete HTML template with CSS and JS
@@ -426,21 +492,78 @@ HTML_TEMPLATE = """
             opacity: 0.7;
             cursor: not-allowed;
         }
+        
+        .copy-link {
+            display: flex;
+            align-items: center;
+            margin-top: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            width: 100%;
+        }
+        
+        .copy-link input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: white;
+            padding: 5px;
+            outline: none;
+        }
+        
+        .copy-link button {
+            background: var(--accent-color);
+            border: none;
+            color: var(--dark-color);
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+        
+        .copy-link button:hover {
+            background: #3fb0e6;
+        }
+        
+        .expiry-timer {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #ff9800;
+        }
+        
+        .download-section {
+            margin-top: 20px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        .download-link {
+            display: inline-block;
+            margin-top: 10px;
+            color: var(--accent-color);
+            text-decoration: none;
+            word-break: break-all;
+            padding: 10px;
+            background: rgba(79, 195, 247, 0.1);
+            border-radius: 5px;
+        }
+        
+        .download-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <a href="#" class="logo">
-               
-                 CRAFTLAND EDIT MAP FILE
+                CRAFTLAND EDIT MAP FILE
             </a>
         </header>
         
         <main class="main-content">
-            <h1>MED BY ╭ᶫ⁷╯Ｌ７ＡＪ ¹
-            
-             </h1>
+            <h1>MED BY ╭ᶫ⁷╯Ｌ７ＡＪ ¹</h1>
             
             <p class="description">
                Upload the file below and put the ID  
@@ -451,7 +574,7 @@ HTML_TEMPLATE = """
                     <div class="file-upload">
                         <input type="file" id="fileInput" name="file" accept=".bytes" required>
                         <i class="fas fa-cloud-upload-alt"></i>
-                        <p>Upload the file  .bytes >
+                        <p>Upload the file  .bytes ></p>
                         <span id="fileName">No file chosen</span>
                     </div>
                 </div>
@@ -476,8 +599,13 @@ HTML_TEMPLATE = """
             <div class="result-container" id="resultContainer">
                 <div class="result-box">
                     <p id="resultMessage">File processed successfully!</p>
+                    <div class="download-section">
+                        <p>Your file is ready to download:</p>
+                        <a href="#" id="downloadLink" class="download-link" target="_blank"></a>
+                    </div>
+                    <div class="expiry-timer" id="expiryTimer"></div>
                     <button class="btn download-btn" id="downloadBtn">
-                        Download Modified File
+                        Download Now
                         <i class="fas fa-download"></i>
                     </button>
                 </div>
@@ -516,6 +644,9 @@ HTML_TEMPLATE = """
         const progressText = document.getElementById('progressText');
         const resultContainer = document.getElementById('resultContainer');
         const downloadBtn = document.getElementById('downloadBtn');
+        const downloadLink = document.getElementById('downloadLink');
+        const expiryTimer = document.getElementById('expiryTimer');
+        const resultMessage = document.getElementById('resultMessage');
 
         // File input change handler
         fileInput.addEventListener('change', function() {
@@ -589,47 +720,64 @@ HTML_TEMPLATE = """
             }, 200);
             
             try {
-    const formData = new FormData(uploadForm);
-    
-    const response = await fetch('/api/process', {
-        method: 'POST',
-        body: formData
-    });
-    
-    clearInterval(progressInterval);
-    updateProgress(100);
-    
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Unknown error occurred');
-    }
-    
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    
-    // Show result
-    resultContainer.style.display = 'block';
-    
-    // Set up download button to open in new tab
-    downloadBtn.onclick = function() {
-        // Open the blob URL directly in a new tab
-        window.open(url, '_blank');
-        
-        // Optional: Revoke the blob URL after some time
-        setTimeout(() => {
-            URL.revokeObjectURL(url);
-        }, 10000);
-    };
-    
-} catch (error) {
-    console.error('Error:', error);
-    showError(error.message);
-} finally {
-    spinner.style.display = 'none';
-    submitBtn.disabled = false;
-    setTimeout(() => {
-        progressContainer.style.display = 'none';
-    }, 1000);
+                const formData = new FormData(uploadForm);
+                
+                const response = await fetch('/api/process', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                clearInterval(progressInterval);
+                updateProgress(100);
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Unknown error occurred');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Processing failed');
+                }
+                
+                // Show result with download link
+                resultContainer.style.display = 'block';
+                downloadLink.href = data.download_url;
+                downloadLink.textContent = data.download_url;
+                
+                // Set up download button
+                downloadBtn.onclick = function() {
+                    window.open(data.download_url, '_blank');
+                };
+                
+                // Start expiry countdown
+                let timeLeft = 20;
+                expiryTimer.textContent = `Link expires in: ${timeLeft} seconds`;
+                
+                const countdown = setInterval(() => {
+                    timeLeft--;
+                    expiryTimer.textContent = `Link expires in: ${timeLeft} seconds`;
+                    
+                    if (timeLeft <= 0) {
+                        clearInterval(countdown);
+                        expiryTimer.textContent = 'Link has expired';
+                        expiryTimer.style.color = '#f44336';
+                        downloadBtn.disabled = true;
+                        downloadLink.style.opacity = '0.5';
+                        downloadLink.style.pointerEvents = 'none';
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showError(`Error: ${error.message}`);
+            } finally {
+                spinner.style.display = 'none';
+                submitBtn.disabled = false;
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                }, 1000);
             }
         });
 
