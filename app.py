@@ -56,14 +56,10 @@ def encrypt_id(x):
     except:
         return None
 
-# File processing function with ID verification
+# File processing function
 def process_file(file_content, encrypted_id):
     combined_code = "38" + encrypted_id
     combined_bytes = bytes.fromhex(combined_code)
-    
-    # First verify if the encrypted ID exists in the file
-    if combined_bytes not in file_content:
-        return None
     
     modified_content = bytearray(file_content)
     index = modified_content.find(combined_bytes)
@@ -94,9 +90,6 @@ def api_process():
         file_content = file.read()
         modified_content = process_file(file_content, encrypted_id)
         
-        if modified_content is None:
-            return jsonify({'error': 'The encrypted ID was not found in the file'}), 404
-        
         return send_file(
             BytesIO(modified_content),
             as_attachment=True,
@@ -116,9 +109,10 @@ HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRAFTLAND EDIT MAP FILE</title>
+    <title>Bytes File Encryption Tool</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -438,16 +432,18 @@ HTML_TEMPLATE = """
     <div class="container">
         <header>
             <a href="#" class="logo">
-                <i class="fas fa-lock"></i>
-                CRAFTLAND EDIT MAP FILE
+               
+                 CRAFTLAND EDIT MAP FILE
             </a>
         </header>
         
         <main class="main-content">
-            <h1>MED BY ╭ᶫ⁷╯Ｌ７ＡＪ ¹</h1>
+            <h1>MED BY ╭ᶫ⁷╯Ｌ７ＡＪ ¹
+            
+             </h1>
             
             <p class="description">
-               Upload your .bytes file and enter the ID to process
+               Upload the file below and put the ID  
             </p>
             
             <form id="uploadForm" enctype="multipart/form-data">
@@ -455,13 +451,13 @@ HTML_TEMPLATE = """
                     <div class="file-upload">
                         <input type="file" id="fileInput" name="file" accept=".bytes" required>
                         <i class="fas fa-cloud-upload-alt"></i>
-                        <p>Drag & drop your .bytes file or click to select</p>
+                        <p>Upload the file  .bytes >
                         <span id="fileName">No file chosen</span>
                     </div>
                 </div>
                 
                 <div class="id-input">
-                    <input type="text" id="idInput" name="id" placeholder="Enter numeric ID" required>
+                    <input type="text" id="idInput" name="id" placeholder="Enter ID" required>
                 </div>
                 
                 <button type="submit" class="btn btn-accent" id="submitBtn">
@@ -494,7 +490,7 @@ HTML_TEMPLATE = """
             <a href="https://youtube.com/@l7aj.1m?si=sgcsPUwAhqj_agcN" class="social-link youtube" target="_blank">
                 <i class="fab fa-youtube"></i>
             </a>
-            <a href="https://www.tiktok.com/@l7aj..1m?_t=ZM-8xnsOLMv6GM&_r=1" class="social-link tiktok" target="_blank">
+            <a href="https://www.tiktok.com/@l7aj..1m?_t=ZM-8xnsOLMv6GM&_r=1" class="social-link tiktok" target="">
                 <i class="fab fa-tiktok"></i>
             </a>
             <a href="https://t.me/l7_l7aj" class="social-link telegram" target="_blank">
@@ -503,7 +499,7 @@ HTML_TEMPLATE = """
         </div>
         
         <footer>
-            <p>╭ᶫ⁷╯Ｌ７ＡＪ ¹ ©</p>
+            <p> ╭ᶫ⁷╯Ｌ７ＡＪ ¹ ©</p>
         </footer>
     </div>
     
@@ -593,47 +589,47 @@ HTML_TEMPLATE = """
             }, 200);
             
             try {
-                const formData = new FormData(uploadForm);
-                
-                const response = await fetch('/api/process', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                clearInterval(progressInterval);
-                updateProgress(100);
-                
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Unknown error occurred');
-                }
-                
-                const blob = await response.blob();
-                const url = URL.createObjectURL(blob);
-                
-                // Show result
-                resultContainer.style.display = 'block';
-                
-                // Set up download button
-                downloadBtn.onclick = function() {
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `modified_${file.name}`;
-                    document.body.appendChild(a);
-                    a.click();
-                    URL.revokeObjectURL(url);
-                    a.remove();
-                };
-                
-            } catch (error) {
-                console.error('Error:', error);
-                showError(error.message);
-            } finally {
-                spinner.style.display = 'none';
-                submitBtn.disabled = false;
-                setTimeout(() => {
-                    progressContainer.style.display = 'none';
-                }, 1000);
+    const formData = new FormData(uploadForm);
+    
+    const response = await fetch('/api/process', {
+        method: 'POST',
+        body: formData
+    });
+    
+    clearInterval(progressInterval);
+    updateProgress(100);
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Unknown error occurred');
+    }
+    
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    
+    // Show result
+    resultContainer.style.display = 'block';
+    
+    // Set up download button to open in new tab
+    downloadBtn.onclick = function() {
+        // Open the blob URL directly in a new tab
+        window.open(url, '_blank');
+        
+        // Optional: Revoke the blob URL after some time
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+        }, 10000);
+    };
+    
+} catch (error) {
+    console.error('Error:', error);
+    showError(error.message);
+} finally {
+    spinner.style.display = 'none';
+    submitBtn.disabled = false;
+    setTimeout(() => {
+        progressContainer.style.display = 'none';
+    }, 1000);
             }
         });
 
@@ -646,8 +642,6 @@ HTML_TEMPLATE = """
             errorMessage.textContent = message;
         }
     </script>
-    
-    
 </body>
 </html>
 """
