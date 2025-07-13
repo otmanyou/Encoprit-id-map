@@ -1,36 +1,10 @@
-from flask import Flask, request, send_file, render_template_string, jsonify, redirect, url_for
+from flask import Flask, request, send_file, render_template_string, jsonify
 from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
 import time
-import os
-import string
-import random
-from datetime import datetime, timedelta
 
 app = Flask(__name__)
 executor = ThreadPoolExecutor(4)  # For handling multiple requests
-
-# Temporary storage directory
-TEMP_DIR = "temp_files"
-if not os.path.exists(TEMP_DIR):
-    os.makedirs(TEMP_DIR)
-
-# Cleanup function for temporary files
-def cleanup_temp_files():
-    now = datetime.now()
-    for filename in os.listdir(TEMP_DIR):
-        file_path = os.path.join(TEMP_DIR, filename)
-        try:
-            creation_time = datetime.fromtimestamp(os.path.getctime(file_path))
-            if now - creation_time > timedelta(minutes=5):
-                os.remove(file_path)
-        except:
-            pass
-
-# Generate random filename
-def generate_random_filename(original_name):
-    rand_str = ''.join(random.choices(string.ascii_letters + string.digits, k=7))
-    return f"{rand_str}_{original_name}"
 
 # Encryption function
 def encrypt_id(x):
@@ -82,10 +56,14 @@ def encrypt_id(x):
     except:
         return None
 
-# File processing function
+# File processing function with ID verification
 def process_file(file_content, encrypted_id):
     combined_code = "38" + encrypted_id
     combined_bytes = bytes.fromhex(combined_code)
+    
+    # First verify if the encrypted ID exists in the file
+    if combined_bytes not in file_content:
+        return None
     
     modified_content = bytearray(file_content)
     index = modified_content.find(combined_bytes)
@@ -116,68 +94,31 @@ def api_process():
         file_content = file.read()
         modified_content = process_file(file_content, encrypted_id)
         
-        # Generate random filename
-        random_filename = generate_random_filename(file.filename)
-        temp_filepath = os.path.join(TEMP_DIR, random_filename)
+        if modified_content is None:
+            return jsonify({'error': 'The encrypted ID was not found in the file'}), 404
         
-        # Save to temporary file
-        with open(temp_filepath, 'wb') as f:
-            f.write(modified_content)
-        
-        # Return the temporary download link
-        download_url = url_for('download_file', filename=random_filename, _external=True)
-        
-        return jsonify({
-            'success': True,
-            'download_url': download_url,
-            'filename': random_filename,
-            'expires_in': 20  # seconds
-        })
-    except Exception as e:
-        return jsonify({'error': f'File processing failed: {str(e)}'}), 500
-
-# Download endpoint for temporary files
-@app.route('/download/<filename>')
-def download_file(filename):
-    try:
-        filepath = os.path.join(TEMP_DIR, filename)
-        
-        # Check if file exists
-        if not os.path.exists(filepath):
-            return "File not found or link expired", 404
-            
-        # Check file age (should be less than 20 seconds)
-        file_age = datetime.now() - datetime.fromtimestamp(os.path.getctime(filepath))
-        if file_age.total_seconds() > 20:
-            os.remove(filepath)  # Delete expired file
-            return "Download link has expired", 410  # Gone
-        
-        # Send the file
         return send_file(
-            filepath,
+            BytesIO(modified_content),
             as_attachment=True,
-            download_name=filename,
+            download_name=f"modified_{file.filename}",
             mimetype='application/octet-stream'
         )
     except Exception as e:
-        return f"Error: {str(e)}", 500
+        return jsonify({'error': f'File processing failed: {str(e)}'}), 500
 
 # Website interface
 @app.route('/', methods=['GET'])
 def index():
-    # Clean up old files on each visit
-    cleanup_temp_files()
     return render_template_string(HTML_TEMPLATE)
 
 # Complete HTML template with CSS and JS
-HTML_TEMPLATE = r"""
+HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bytes File Encryption Tool</title>
+    <title>CRAFTLAND EDIT MAP FILE</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -491,72 +432,13 @@ HTML_TEMPLATE = r"""
             opacity: 0.7;
             cursor: not-allowed;
         }
-        
-        .copy-link {
-            display: flex;
-            align-items: center;
-            margin-top: 15px;
-            background: rgba(255, 255, 255, 0.1);
-            padding: 10px;
-            border-radius: 8px;
-            width: 100%;
-        }
-        
-        .copy-link input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: white;
-            padding: 5px;
-            outline: none;
-        }
-        
-        .copy-link button {
-            background: var(--accent-color);
-            border: none;
-            color: var(--dark-color);
-            padding: 5px 10px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-left: 5px;
-        }
-        
-        .copy-link button:hover {
-            background: #3fb0e6;
-        }
-        
-        .expiry-timer {
-            margin-top: 10px;
-            font-size: 14px;
-            color: #ff9800;
-        }
-        
-        .download-section {
-            margin-top: 20px;
-            width: 100%;
-            text-align: center;
-        }
-        
-        .download-link {
-            display: inline-block;
-            margin-top: 10px;
-            color: var(--accent-color);
-            text-decoration: none;
-            word-break: break-all;
-            padding: 10px;
-            background: rgba(79, 195, 247, 0.1);
-            border-radius: 5px;
-        }
-        
-        .download-link:hover {
-            text-decoration: underline;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <a href="#" class="logo">
+                <i class="fas fa-lock"></i>
                 CRAFTLAND EDIT MAP FILE
             </a>
         </header>
@@ -565,7 +447,7 @@ HTML_TEMPLATE = r"""
             <h1>MED BY ╭ᶫ⁷╯Ｌ７ＡＪ ¹</h1>
             
             <p class="description">
-               Upload the file below and put the ID  
+               Upload your .bytes file and enter the ID to process
             </p>
             
             <form id="uploadForm" enctype="multipart/form-data">
@@ -573,13 +455,13 @@ HTML_TEMPLATE = r"""
                     <div class="file-upload">
                         <input type="file" id="fileInput" name="file" accept=".bytes" required>
                         <i class="fas fa-cloud-upload-alt"></i>
-                        <p>Upload the file  .bytes ></p>
+                        <p>Drag & drop your .bytes file or click to select</p>
                         <span id="fileName">No file chosen</span>
                     </div>
                 </div>
                 
                 <div class="id-input">
-                    <input type="text" id="idInput" name="id" placeholder="Enter ID" required>
+                    <input type="text" id="idInput" name="id" placeholder="Enter numeric ID" required>
                 </div>
                 
                 <button type="submit" class="btn btn-accent" id="submitBtn">
@@ -598,13 +480,8 @@ HTML_TEMPLATE = r"""
             <div class="result-container" id="resultContainer">
                 <div class="result-box">
                     <p id="resultMessage">File processed successfully!</p>
-                    <div class="download-section">
-                        <p>Your file is ready to download:</p>
-                        <a href="#" id="downloadLink" class="download-link" target="_blank"></a>
-                    </div>
-                    <div class="expiry-timer" id="expiryTimer"></div>
                     <button class="btn download-btn" id="downloadBtn">
-                        Download Now
+                        Download Modified File
                         <i class="fas fa-download"></i>
                     </button>
                 </div>
@@ -617,7 +494,7 @@ HTML_TEMPLATE = r"""
             <a href="https://youtube.com/@l7aj.1m?si=sgcsPUwAhqj_agcN" class="social-link youtube" target="_blank">
                 <i class="fab fa-youtube"></i>
             </a>
-            <a href="https://www.tiktok.com/@l7aj..1m?_t=ZM-8xnsOLMv6GM&_r=1" class="social-link tiktok" target="">
+            <a href="https://www.tiktok.com/@l7aj..1m?_t=ZM-8xnsOLMv6GM&_r=1" class="social-link tiktok" target="_blank">
                 <i class="fab fa-tiktok"></i>
             </a>
             <a href="https://t.me/l7_l7aj" class="social-link telegram" target="_blank">
@@ -626,7 +503,7 @@ HTML_TEMPLATE = r"""
         </div>
         
         <footer>
-            <p> ╭ᶫ⁷╯Ｌ７ＡＪ ¹ ©</p>
+            <p>╭ᶫ⁷╯Ｌ７ＡＪ ¹ ©</p>
         </footer>
     </div>
     
@@ -643,9 +520,6 @@ HTML_TEMPLATE = r"""
         const progressText = document.getElementById('progressText');
         const resultContainer = document.getElementById('resultContainer');
         const downloadBtn = document.getElementById('downloadBtn');
-        const downloadLink = document.getElementById('downloadLink');
-        const expiryTimer = document.getElementById('expiryTimer');
-        const resultMessage = document.getElementById('resultMessage');
 
         // File input change handler
         fileInput.addEventListener('change', function() {
@@ -734,43 +608,26 @@ HTML_TEMPLATE = r"""
                     throw new Error(error.error || 'Unknown error occurred');
                 }
                 
-                const data = await response.json();
+                const blob = await response.blob();
+                const url = URL.createObjectURL(blob);
                 
-                if (!data.success) {
-                    throw new Error(data.error || 'Processing failed');
-                }
-                
-                // Show result with download link
+                // Show result
                 resultContainer.style.display = 'block';
-                downloadLink.href = data.download_url;
-                downloadLink.textContent = data.download_url;
                 
                 // Set up download button
                 downloadBtn.onclick = function() {
-                    window.open(data.download_url, '_blank');
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `modified_${file.name}`;
+                    document.body.appendChild(a);
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    a.remove();
                 };
-                
-                // Start expiry countdown
-                let timeLeft = 20;
-                expiryTimer.textContent = `Link expires in: ${timeLeft} seconds`;
-                
-                const countdown = setInterval(() => {
-                    timeLeft--;
-                    expiryTimer.textContent = `Link expires in: ${timeLeft} seconds`;
-                    
-                    if (timeLeft <= 0) {
-                        clearInterval(countdown);
-                        expiryTimer.textContent = 'Link has expired';
-                        expiryTimer.style.color = '#f44336';
-                        downloadBtn.disabled = true;
-                        downloadLink.style.opacity = '0.5';
-                        downloadLink.style.pointerEvents = 'none';
-                    }
-                }, 1000);
                 
             } catch (error) {
                 console.error('Error:', error);
-                showError(`Error: ${error.message}`);
+                showError(error.message);
             } finally {
                 spinner.style.display = 'none';
                 submitBtn.disabled = false;
@@ -789,6 +646,8 @@ HTML_TEMPLATE = r"""
             errorMessage.textContent = message;
         }
     </script>
+    
+    
 </body>
 </html>
 """
